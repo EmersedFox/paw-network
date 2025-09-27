@@ -1,6 +1,7 @@
 # Paw Network Discord Bot
 
 Paw Network is a specialized Discord bot designed to facilitate cross-server verification and moderation. It allows staff to check a user's roles, ban status, and special permissions across a network of configured Discord servers, all managed through a live configuration file hosted on GitHub.
+
 Features
 
     Cross-Server Verification: Check a user's roles in multiple servers from a single command.
