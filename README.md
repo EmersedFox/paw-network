@@ -1,7 +1,6 @@
 # Paw Network Discord Bot
 
 Paw Network is a specialized Discord bot designed to facilitate cross-server verification and moderation. It allows staff to check a user's roles, ban status, and special permissions across a network of configured Discord servers, all managed through a live configuration file hosted on GitHub.
-
 Features
 
     Cross-Server Verification: Check a user's roles in multiple servers from a single command.
@@ -14,6 +13,9 @@ Features
 
     Secure & Permission-Based: Owner-only commands are restricted to a specific user ID for security.
 
+Join the Network
+
+Want to add your server to the Paw Network? You can apply to join by visiting our official Discord server: Join the Paw Network Hub
 Setup Instructions
 
 Follow these steps to get your instance of the Paw Network bot running.
@@ -33,11 +35,9 @@ All the necessary files for the bot are hosted on GitHub. You will need to get t
 
     git clone [https://your-repository-url-here.git](https://your-repository-url-here.git)
 
-
     Navigate into the folder:
 
     cd your-repository-folder-name
-
 
     This folder will contain bot.py, requirements.txt, and other necessary files.
 
@@ -110,7 +110,6 @@ Open your terminal or command prompt in the bot's folder and run:
 
 pip install -r requirements.txt
 
-
 Step 6: Invite the Bot and Run It
 
     Invite the Bot: In the Discord Developer Portal, go to OAuth2 -> URL Generator. Select the bot and applications.commands scopes. Then, grant it the following Bot Permissions:
@@ -128,7 +127,6 @@ Step 6: Invite the Bot and Run It
     Run the Bot: Open your terminal in the bot's folder and run the script:
 
     python bot.py
-
 
 Command Usage
 Public Commands
