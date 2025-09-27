@@ -34,14 +34,23 @@ async def load_config():
         async with aiohttp.ClientSession() as session:
             async with session.get(CONFIG_URL) as response:
                 if response.status == 200:
-                    # Fix: Tell aiohttp to parse as JSON regardless of the mimetype
-                    config = await response.json(content_type=None)
+                    raw_text = await response.text()
+                    
+                    # --- DEBUGGING STEP ---
+                    # Print the raw text to see exactly what the bot is receiving.
+                    print("--- Fetched Raw Config Text ---")
+                    print(raw_text)
+                    print("-----------------------------")
+
+                    config = json.loads(raw_text)
+                    
                     # Discord.py requires integer IDs, but JSON keys are strings.
                     # We need to convert them.
                     for server_key, server_data in config.items():
                         for role_group_key, role_group_data in server_data.items():
                             if isinstance(role_group_data, dict) and "id" not in role_group_data:
                                 config[server_key][role_group_key] = {int(k): v for k, v in role_group_data.items()}
+                    
                     print("Successfully loaded configuration from GitHub.")
                     return config
                 else:
@@ -310,11 +319,56 @@ async def createembed(interaction: discord.Interaction, server_name: str, invite
     await interaction.response.send_message(embed=embed)
 
 
+@bot.tree.command(name="networkstats", description="Displays statistics about the configured network servers.")
+@is_owner()
+async def networkstats(interaction: discord.Interaction):
+    """
+    Provides a summary of all servers in the network, their status, and member counts.
+    """
+    await interaction.response.defer(ephemeral=True)
+
+    embed = discord.Embed(
+        title="Paw Network Statistics",
+        color=discord.Color.blue()
+    )
+
+    if not SERVER_CONFIG:
+        embed.description = "⚠️ The server configuration is currently unavailable."
+        embed.color = discord.Color.red()
+        await interaction.followup.send(embed=embed)
+        return
+
+    total_servers = len(SERVER_CONFIG)
+    servers_online = 0
+    total_members = 0
+    server_details = []
+
+    for server_key, config in SERVER_CONFIG.items():
+        guild = bot.get_guild(config["id"])
+        if guild:
+            servers_online += 1
+            total_members += guild.member_count
+            server_details.append(f"🟢 **{guild.name}** (`{guild.member_count}` members)")
+        else:
+            server_details.append(f"🔴 **{config['name']}** (Offline/Not Found)")
+
+    embed.description = "\n".join(server_details)
+    embed.add_field(
+        name="Summary",
+        value=f"**Total Servers:** {total_servers}\n"
+              f"**Servers Online:** {servers_online}\n"
+              f"**Total Members:** `{total_members}`",
+        inline=False
+    )
+    embed.set_footer(text="Live network overview")
+
+    await interaction.followup.send(embed=embed)
+
+
 # --- RUN THE BOT ---
 if __name__ == "__main__":
     if TOKEN:
         bot.run(TOKEN)
     else:
         print("Error: DISCORD_TOKEN not found in .env file.")
-
 
