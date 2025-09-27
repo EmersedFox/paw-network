@@ -1,6 +1,8 @@
 # main.py
 import os
+import json
 import discord
+import aiohttp
 from discord.ext import commands
 from dotenv import load_dotenv
 
@@ -8,57 +10,93 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
-# IMPORTANT: Add your Discord User ID to your .env file for the owner-only command.
-# Example: OWNER_ID="123456789012345678"
-OWNER_ID = os.getenv('OWNER_ID')
-
+OWNER_ID_STR = os.getenv('OWNER_ID')
+CONFIG_URL = os.getenv('CONFIG_URL')
 
 # It's recommended to define intents for your bot.
-# For the bot to see members in a server, you need to enable the members intent.
 intents = discord.Intents.default()
-intents.message_content = True 
+intents.message_content = True
 intents.members = True # <-- IMPORTANT: This is required to get member information reliably.
-intents.bans = True # <-- IMPORTANT: This is required to check for bans.
 
 # Create a bot instance with a command prefix and the defined intents
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 # --- CONFIGURATION ---
-# Server and Role IDs you provided.
-SERVER_CONFIG = {
-    "your_server": { # <- Change the Name used by the bot for the server
-        "id": 0, # <- Change to your Server ID
-        "name": "Your Server", # <- Change to the Name you want the Bot to Say
-        "pnetwork_verified_role": {
-            "id": 0, # <- Change this to the Paw Network Verified Role 
-            "name": "Paw Network Verified" 
-        },
-        "roles_to_check": {
-            0: "Verified" # <- Change to your Verifed Role
-        },
-        "unverified_roles": {
-            0: "Unverified" # <- Change to your Unverifed Role
-        },
-        "owner_roles": {
-            0: "Owner" # <- Change to your Owner Role
-        },
-        "staff_roles": {
-            0: "Staff" # <- Change to your Staff Roles
-        }
-    }
-}
+SERVER_CONFIG = {}
 
+async def load_config():
+    """Loads server configuration from a GitHub raw URL and converts role IDs to integers."""
+    if not CONFIG_URL:
+        print("Error: CONFIG_URL not found in .env file. Cannot load configuration.")
+        return None
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(CONFIG_URL) as response:
+                if response.status == 200:
+                    # Fix: Tell aiohttp to parse as JSON regardless of the mimetype
+                    config = await response.json(content_type=None)
+                    # Discord.py requires integer IDs, but JSON keys are strings.
+                    # We need to convert them.
+                    for server_key, server_data in config.items():
+                        for role_group_key, role_group_data in server_data.items():
+                            if isinstance(role_group_data, dict) and "id" not in role_group_data:
+                                config[server_key][role_group_key] = {int(k): v for k, v in role_group_data.items()}
+                    print("Successfully loaded configuration from GitHub.")
+                    return config
+                else:
+                    print(f"Error: Failed to fetch config from GitHub. Status: {response.status}")
+                    return None
+    except aiohttp.ClientError as e:
+        print(f"Error: AIOHTTP client error while fetching config: {e}")
+        return None
+    except json.JSONDecodeError:
+        print("Error: Fetched config file from GitHub is not valid JSON.")
+        return None
+    except Exception as e:
+        print(f"An unexpected error occurred while loading config from GitHub: {e}")
+        return None
+
+
+# --- OWNER CHECK ---
+# A check function to see if the command user is the bot owner
+def is_owner():
+    async def predicate(interaction: discord.Interaction) -> bool:
+        if not OWNER_ID_STR:
+            await interaction.response.send_message("Owner ID is not set in the `.env` file.", ephemeral=True)
+            return False
+        try:
+            owner_id = int(OWNER_ID_STR)
+            if interaction.user.id == owner_id:
+                return True
+            else:
+                await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+                return False
+        except ValueError:
+            await interaction.response.send_message("The `OWNER_ID` in the `.env` file is not a valid user ID.", ephemeral=True)
+            return False
+    return discord.app_commands.check(predicate)
 
 # --- EVENTS ---
 @bot.event
 async def on_ready():
     """
     This event is triggered when the bot has successfully connected to Discord.
-    It prints a confirmation message to the console and syncs the slash commands.
     """
+    global SERVER_CONFIG
+    SERVER_CONFIG = await load_config()
+
     print(f'Logged in as {bot.user.name} (ID: {bot.user.id})')
+    if not SERVER_CONFIG:
+        print('Warning: Server configuration could not be loaded. The bot may not function as expected.')
+    else:
+        print(f'Loaded configuration for {len(SERVER_CONFIG)} server(s).')
+
+    # Set the bot's presence/activity
+    activity = discord.Game(name="Checking IDs")
+    await bot.change_presence(status=discord.Status.online, activity=activity)
+
     print('Bot is ready and online!')
-    await bot.change_presence(activity=discord.Game(name="Checking IDs"))
     try:
         # Sync the slash commands to the command tree
         synced = await bot.tree.sync()
@@ -67,36 +105,51 @@ async def on_ready():
         print(f"Failed to sync commands: {e}")
 
 
-# --- SLASH COMMANDS (Preferred Method) ---
+# --- SLASH COMMANDS ---
 @bot.tree.command(name="ping", description="Replies with the bot's latency.")
 async def ping(interaction: discord.Interaction):
     """
     A simple slash command that replies with the bot's latency in milliseconds.
-    This is a great way to check if the bot is responsive.
     """
-    # Calculate the latency
     latency = round(bot.latency * 1000)
-    # Respond to the interaction
     await interaction.response.send_message(f'Pong! Latency: {latency}ms')
+
+@bot.tree.command(name="reloadconfig", description="Reloads the server configuration from the GitHub URL.")
+@is_owner()
+async def reloadconfig(interaction: discord.Interaction):
+    """
+    Refetches and reloads the config.json from the GitHub URL.
+    """
+    await interaction.response.defer(ephemeral=True)
+    global SERVER_CONFIG
+    new_config = await load_config()
+    if new_config is not None:
+        SERVER_CONFIG = new_config
+        await interaction.followup.send(f"✅ Successfully reloaded configuration for {len(SERVER_CONFIG)} server(s).")
+    else:
+        await interaction.followup.send("❌ Failed to reload configuration. Check the console for errors. The old configuration remains active.")
+
 
 @bot.tree.command(name="checkroles", description="Checks a user's verification roles in configured servers.")
 @discord.app_commands.describe(user="The user you want to check.")
-async def checkroles(interaction: discord.Interaction, user: discord.User): # Changed discord.Member to discord.User
+async def checkroles(interaction: discord.Interaction, user: discord.User):
     """
-    Checks for specific roles for a given user across two pre-configured servers.
-    This now accepts any valid Discord user, not just members of the current server.
+    Checks roles and ban status for a user across all servers defined in the live config.
     """
-    # Defer the response to give the bot time to fetch information
     await interaction.response.defer()
 
-    # Create an embed to display the results
     embed = discord.Embed(
-        title=f"Role Verification for {user.name}", # Changed to user.name for global username
+        title=f"Role Verification for {user.name}",
         color=discord.Color.blue()
     )
     embed.set_thumbnail(url=user.display_avatar.url)
 
-    # Flags to track overall status across all servers
+    if not SERVER_CONFIG:
+        embed.description = "⚠️ The server configuration is currently unavailable. Please try again later."
+        embed.color = discord.Color.red()
+        await interaction.followup.send(embed=embed)
+        return
+
     is_banned_anywhere = False
     is_owner = False
     is_staff = False
@@ -105,57 +158,45 @@ async def checkroles(interaction: discord.Interaction, user: discord.User): # Ch
     is_in_at_least_one_server = False
     all_servers_found = True
 
-    # Iterate through the servers defined in the config
     for server_key, config in SERVER_CONFIG.items():
         server_id = config["id"]
         server_name = config["name"]
-        
-        # Try to find the server (guild) the bot is in
+
         guild = bot.get_guild(server_id)
         if not guild:
             embed.add_field(
                 name=f"❌ Server Not Found: {server_name}",
-                value=f"I am not a member of this server. Please invite me.",
+                value=f"I am not a member of this server.",
                 inline=False
             )
             all_servers_found = False
             continue
 
-        # --- BAN CHECK (Highest Priority) ---
+        status_lines = []
+
+        # --- Ban Check ---
         try:
             await guild.fetch_ban(user)
-            # If the above line doesn't error, the user is banned.
+            # If the above line doesn't raise an error, the user is banned.
+            status_lines.append("🚫 **BANNED**")
             is_banned_anywhere = True
-            embed.add_field(
-                name=f"Status in {guild.name}",
-                value="🚫 **BANNED**",
-                inline=False
-            )
-            continue # Skip role checks for this server
+            embed.add_field(name=f"Status in {guild.name}", value="\n".join(status_lines), inline=False)
+            continue # Skip other checks for this server if banned
         except discord.NotFound:
-            # User is not banned, proceed with role checks.
+            # User is not banned, proceed with other checks.
             pass
         except discord.Forbidden:
-            # Bot doesn't have ban permissions
-            embed.add_field(
-                name=f"⚠️ Permission Error in {guild.name}",
-                value="I don't have permission to view the ban list.",
-                inline=False
-            )
+            status_lines.append("⚠️ Permission Error: I don't have permission to view the ban list.")
+        except Exception as e:
+            status_lines.append(f"⚠️ An error occurred during ban check: {e}")
 
-        # --- ROLE CHECKS ---
-        roles_to_check = config["roles_to_check"]
-        unverified_roles_to_check = config.get("unverified_roles", {})
-        staff_roles_to_check = config.get("staff_roles", {})
-        owner_roles_to_check = config.get("owner_roles", {})
-        pnetwork_role_config = config.get("pnetwork_verified_role", {})
+        member = guild.get_member(user.id)
+        if not member:
+            try:
+                member = await guild.fetch_member(user.id)
+            except discord.NotFound:
+                member = None
 
-        # Try to find the member in that server
-        try:
-            member = await guild.fetch_member(user.id)
-        except discord.NotFound:
-            member = None # User is not in this guild
-        
         if not member:
             embed.add_field(
                 name=f"Status in {guild.name}",
@@ -163,75 +204,68 @@ async def checkroles(interaction: discord.Interaction, user: discord.User): # Ch
                 inline=False
             )
             continue
-        
+
         is_in_at_least_one_server = True
 
-        # --- Role checks for the CURRENT server ---
-        # Local flags for this server iteration
         member_is_owner_in_server = False
         member_is_staff_in_server = False
-        
-        # Build the display list for this server
-        status_lines = []
 
-        # Check for Owner roles first
-        for role_id in owner_roles_to_check:
+        # Check for Owner roles
+        for role_id in config.get("owner_roles", {}):
             if any(r.id == role_id for r in member.roles):
                 member_is_owner_in_server = True
-                is_owner = True # Update the global flag for final footer
+                is_owner = True
                 break
-        
+
         if member_is_owner_in_server:
             status_lines.append("👑 Owner")
         else:
-            # If not an owner, check for staff
-            for role_id in staff_roles_to_check:
+            # If not owner, check for staff
+            for role_id in config.get("staff_roles", {}):
                 if any(r.id == role_id for r in member.roles):
                     member_is_staff_in_server = True
-                    is_staff = True # Update the global flag for final footer
+                    is_staff = True
                     break
             if member_is_staff_in_server:
                 status_lines.append("🛡️ Staff")
 
-        # Only check for standard roles if not owner or staff in THIS server
+        # Check for standard roles if not owner or staff in this server
         if not member_is_owner_in_server and not member_is_staff_in_server:
-            verified_roles_found_in_server = []
+            verified_roles_found = []
 
-            # Check for Paw Network Verified Role
+            pnetwork_role_config = config.get("pnetwork_verified_role", {})
             pnetwork_role_id = pnetwork_role_config.get("id")
-            pnetwork_role_name = pnetwork_role_config.get("name")
             if pnetwork_role_id and any(r.id == pnetwork_role_id for r in member.roles):
-                verified_roles_found_in_server.append(f"🐾 {pnetwork_role_name}")
+                verified_roles_found.append(f"🐾 {pnetwork_role_config.get('name', 'Paw Network Verified')}")
                 has_any_verified_role = True
 
-            # Check for other standard verification roles
-            for role_id, role_name in roles_to_check.items():
+            for role_id, role_name in config.get("roles_to_check", {}).items():
                 if any(r.id == role_id for r in member.roles):
-                    verified_roles_found_in_server.append(f"✅ {role_name}")
+                    verified_roles_found.append(f"✅ {role_name}")
                     has_any_verified_role = True
-            
-            if verified_roles_found_in_server:
-                status_lines.extend(verified_roles_found_in_server)
+
+            if verified_roles_found:
+                status_lines.extend(verified_roles_found)
             else:
                 status_lines.append("❌ No matching verification roles found.")
 
         # Always check for unverified roles
-        found_unverified = []
-        for role_id, role_name in unverified_roles_to_check.items():
+        unverified_found = []
+        for role_id, role_name in config.get("unverified_roles", {}).items():
             if any(r.id == role_id for r in member.roles):
-                found_unverified.append(f"⚠️ {role_name}")
-                has_any_unverified_role = True # Update global flag
-        
-        if found_unverified:
-            status_lines.extend(found_unverified)
-            
+                unverified_found.append(f"⚠️ {role_name}")
+                has_any_unverified_role = True
+
+        if unverified_found:
+            status_lines.extend(unverified_found)
+
         embed.add_field(
             name=f"Status in {guild.name}",
-            value="\n".join(status_lines),
+            value="\n".join(status_lines) if status_lines else "No relevant status found.",
             inline=False
         )
 
-    # Set the final footer and color based on the overall verification status
+    # Set final footer and color
     if is_banned_anywhere:
         embed.color = discord.Color.dark_red()
         embed.set_footer(text="BANNED")
@@ -250,55 +284,37 @@ async def checkroles(interaction: discord.Interaction, user: discord.User): # Ch
     else:
         embed.color = discord.Color.orange()
         embed.set_footer(text="Unverified")
-        
-    # Send the final embed
+
     await interaction.followup.send(embed=embed)
 
-@bot.tree.command(name="createembed", description="Creates a server embed. (Owner only)")
+
+@bot.tree.command(name="createembed", description="Creates a server advertisement embed.")
+@is_owner()
 @discord.app_commands.describe(
     server_name="The name of the server.",
-    invite_link="The full invite link for the server.",
-    owner_username="The username of the server owner."
+    invite_link="The permanent invite link for the server.",
+    owner_username="The Discord username of the server owner."
 )
 async def createembed(interaction: discord.Interaction, server_name: str, invite_link: str, owner_username: str):
     """
-    Generates a server advertisement embed. This command can only be used by the bot owner.
+    Generates a clean embed for advertising a server. Only usable by the bot owner.
     """
-    # --- Owner Check ---
-    if not OWNER_ID or str(interaction.user.id) != OWNER_ID:
-        await interaction.response.send_message(
-            "Sorry, this command can only be used by the bot owner.", 
-            ephemeral=True
-        )
-        return
-
-    # --- Create Embed ---
     embed = discord.Embed(
-        title=f"🐾 {server_name}",
-        color=discord.Color.from_rgb(113, 13, 189) # A custom purple color
+        title=f"Partner Spotlight: {server_name}",
+        color=discord.Color.from_rgb(113, 104, 226) # A nice purple color
     )
-    embed.add_field(name="🔗 Invite Link", value=invite_link, inline=False)
-    embed.add_field(name="👑 Owner", value=owner_username, inline=False)
-    embed.set_footer(text="Powered by Paw Network")
+    embed.add_field(name="Owner", value=owner_username, inline=True)
+    embed.add_field(name="Invite Link", value=f"[Click Here to Join!]({invite_link})", inline=True)
+    embed.set_footer(text="Paw Network Partner")
 
-    # Send the embed to the channel where the command was used
     await interaction.response.send_message(embed=embed)
 
 
-# --- PREFIX COMMANDS (Legacy Method) ---
-@bot.command(name='hello', help='Responds with a friendly greeting.')
-async def hello(ctx):
-    """
-    A simple prefix command. Users can type `!hello` to trigger this.
-    """
-    await ctx.send(f'Hello, {ctx.author.mention}!')
-
-
 # --- RUN THE BOT ---
-# This is the final line that runs the bot with your token.
-if TOKEN:
-    bot.run(TOKEN)
-else:
-    print("Error: DISCORD_TOKEN not found in .env file.")
-    print("Please follow the instructions in README.md to set up your bot token.")
+if __name__ == "__main__":
+    if TOKEN:
+        bot.run(TOKEN)
+    else:
+        print("Error: DISCORD_TOKEN not found in .env file.")
+
 
