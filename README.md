@@ -1,80 +1,98 @@
-🐾 Paw Network Discord Bot
+# Paw Network Discord Bot
 
-Paw Network is a custom Discord bot designed to facilitate cross-server user verification. It can check for specific roles, staff/owner status, and ban status across multiple configured Discord servers, providing a comprehensive verification summary in a clean embed.
+Paw Network is a specialized Discord bot designed to facilitate cross-server verification and moderation. It allows staff to check a user's roles, ban status, and special permissions across a network of configured Discord servers, all managed through a live configuration file hosted on GitHub.
 Features
 
-    Cross-Server Verification: Checks user roles across any number of configured servers.
+    Cross-Server Verification: Check a user's roles in multiple servers from a single command.
 
-    Hierarchical Status: Prioritizes user status in the following order:
+    Live Configuration: Update the list of servers and roles by editing a JSON file on GitHub, with no need to restart the bot.
 
-        Banned: The highest priority status.
+    Priority Status Checks: Automatically identifies and prioritizes statuses like Banned, Owner, and Staff over standard verification roles.
 
-        Owner: Recognizes server owners.
+    Network Management: Includes owner-only commands to view network-wide statistics and reload the configuration on the fly.
 
-        Staff: Recognizes staff members.
-
-        Verified: Confirms a user has valid verification roles.
-
-        Unverified: Flags users who are unverified or have negative roles.
-
-    Custom Role Recognition: Specifically highlights a "Paw Network Verified" role.
-
-    Ban Check: Actively checks if a user is banned in any of the participating servers.
-
-    Owner-Only Commands: Includes secure commands that can only be used by the designated bot owner.
-
-    Custom Bot Status: Sets a "Playing Checking IDs" status on Discord.
+    Secure & Permission-Based: Owner-only commands are restricted to a specific user ID for security.
 
 Setup Instructions
 
-Follow these steps carefully to get your bot up and running.
-Step 1: Create Your Bot on the Discord Developer Portal
+Follow these steps to get your instance of the Paw Network bot running.
+Prerequisites
+
+    Python 3.8+
+
+    A Discord Account with permissions to create applications.
+
+    A GitHub Account to host the configuration file.
+
+Step 1: Get the Bot Code
+
+You will need to have the bot's files (bot.py, requirements.txt, .env) in a folder on your computer or server.
+Step 2: Create the Discord Bot Application
 
     Go to the Developer Portal: Navigate to the Discord Developer Portal.
 
-    New Application: Click "New Application" and give your bot a name (e.g., "Paw Network").
+    New Application: Create a new application and give it a name (e.g., "Paw Network").
 
-    Go to the "Bot" Tab: On the left menu, select the "Bot" tab.
+    Go to the Bot Tab: Click on the "Bot" tab on the left.
 
-    Get Your Token: Click "Reset Token" and copy the token that appears. Treat this like a password and never share it.
+    Enable Privileged Intents:
 
-    Enable Privileged Intents: Scroll down to "Privileged Gateway Intents" and enable ALL THREE intents:
+        Scroll down to Privileged Gateway Intents.
 
-        PRESENCE INTENT
+        Enable the SERVER MEMBERS INTENT. This is critical for the bot to find users and check their roles.
 
-        SERVER MEMBERS INTENT (Crucial for checking roles)
+    Get Your Bot Token: Click "Reset Token" to reveal and copy your bot's token. This is a secret key.
 
-        MESSAGE CONTENT INTENT
+Step 3: Set Up the Configuration File on GitHub
 
-Step 2: Configure Your .env File
+The bot loads its server list from a server.json file you host on GitHub.
 
-The .env file stores your secret keys. Create a file named .env in the same directory as bot.py and add the following lines, replacing the placeholder values with your own.
+    Create a Public GitHub Repository: Create a new public repository on GitHub (e.g., Paw-Network-Config).
+
+    Create server.json: Inside this repository, create a new file named server.json.
+
+    Add Your Server Data: Copy the structure below into server.json and fill it with your server details. All keys, including the role IDs, must be in double quotes.
+
+    {
+        "server_one_key": {
+            "id": 1333237935268561017,
+            "name": "Emersed Den",
+            "pnetwork_verified_role": { "id": 1421184692706607225, "name": "Paw Network Verified" },
+            "roles_to_check": { "1333248688738406453": "Manually Age Verified" },
+            "unverified_roles": { "1405276168202096646": "Unverified" },
+            "owner_roles": { "1333238516204830772": "Owner" },
+            "staff_roles": { "1414622599819821088": "Staff" }
+        },
+        "another_server_key": {
+            "id": 1303588446132109342,
+            "name": "NeoCity",
+            "roles_to_check": { "1303758361904414750": "Verified Adult" }
+        }
+    }
+
+    Get the Raw URL:
+
+        Once the file is saved, view it on GitHub and click the "Raw" button.
+
+        Copy the URL from your browser's address bar. This is your permanent config URL.
+
+Step 4: Set Up Your .env File
+
+In the same folder as bot.py, create a file named .env and add the following, filling in your own values:
 
 DISCORD_TOKEN="YOUR_BOT_TOKEN_HERE"
 OWNER_ID="YOUR_DISCORD_USER_ID_HERE"
+CONFIG_URL="YOUR_GITHUB_RAW_JSON_URL_HERE"
 
-    DISCORD_TOKEN: The token you copied in Step 1.
+Step 5: Install Dependencies
 
-    OWNER_ID: Your personal Discord User ID. To get this, enable Developer Mode in Discord settings (Advanced), then right-click your profile and select "Copy User ID".
-
-Step 3: Configure Servers in bot.py
-
-Open bot.py and edit the SERVER_CONFIG dictionary to add, remove, or modify the servers and roles you want the bot to track. The structure is straightforward and can be easily expanded.
-Step 4: Install Dependencies
-
-You need to install the Python libraries the bot depends on. Open your terminal or command prompt in the bot's folder and run:
+Open your terminal or command prompt in the bot's folder and run:
 
 pip install -r requirements.txt
 
-Step 5: Invite Your Bot to Your Servers
+Step 6: Invite the Bot and Run It
 
-You must invite the bot to every server listed in your SERVER_CONFIG.
-
-    Go to OAuth2 URL Generator: In the Developer Portal, go to the "OAuth2" tab and then "URL Generator".
-
-    Select Scopes: Check bot and applications.commands.
-
-    Select Bot Permissions: Check the following permissions:
+    Invite the Bot: In the Discord Developer Portal, go to OAuth2 -> URL Generator. Select the bot and applications.commands scopes. Then, grant it the following Bot Permissions:
 
         Read Messages/View Channels
 
@@ -82,40 +100,47 @@ You must invite the bot to every server listed in your SERVER_CONFIG.
 
         Embed Links
 
-        Ban Members (Required for the ban check feature)
+        Ban Members (Required for the ban check)
 
-    Copy and Use the URL: Copy the generated URL at the bottom and paste it into your browser to invite the bot to each of your servers.
+        Copy the generated URL and use it to invite the bot to all servers listed in your config.
 
-Step 6: Run the Bot
+    Run the Bot: Open your terminal in the bot's folder and run the script:
 
-Once everything is configured, run the bot from your terminal:
+    python bot.py
 
-python bot.py
-
-Commands Guide
+Command Usage
+Public Commands
 
     /checkroles [user]
 
-        This is the main command. It fetches the roles and status of a specified user across all configured servers.
+        Checks a specified user's roles, ban status, and permissions across all configured servers.
 
-        The user can be specified by their @username or User ID.
+        Displays a detailed embed showing the user's status in each server.
 
-        The final status in the footer will be determined by their highest-priority role across all servers.
+Owner-Only Commands
+
+    /reloadconfig
+
+        Forces the bot to re-download and load the server.json file from GitHub. Use this after you've updated your server list.
+
+    /networkstats
+
+        Displays an embed with a list of all configured servers, their online status, and current member counts.
 
     /createembed [server_name] [invite_link] [owner_username]
 
-        Owner-only. This command generates a clean, formatted embed for advertising a server.
-
-        This command will fail if your OWNER_ID is not set correctly in the .env file.
-
-    /ping
-
-        A simple utility command to check if the bot is online and responsive. It replies with its current latency.
+        Generates a formatted partner embed, which can be used for server advertisements.
 
 Troubleshooting
 
-    Slash Commands Not Appearing? It can take Discord up to an hour to register new slash commands. If they don't appear, try re-inviting the bot to your server using a fresh URL from the OAuth2 URL Generator (Step 5). Ensure both bot and applications.commands scopes are checked.
+    Slash Commands Not Appearing?
 
-    "Permission Error in [Server Name]"? If you see a message that the bot can't view the ban list, it means the bot does not have the "Ban Members" permission in that server's roles.
+        This usually means the bot was invited without the applications.commands scope. Re-invite the bot using a newly generated URL with the correct scopes checked. It can take Discord a few minutes to register new commands.
 
-    Bot Not Finding a Server? Ensure the server ID in your SERVER_CONFIG is correct and that you have successfully invited the bot to that server.
+    "Permission Error: I don't have permission to view the ban list."
+
+        In the server where this error appears, go to Server Settings -> Roles. Find the bot's role and ensure it has the "Ban Members" permission enabled.
+
+    "Fetched config file... is not valid JSON."
+
+        Your server.json file has a syntax error. Use an online JSON validator to find and fix issues like missing quotes on keys or trailing commas.
