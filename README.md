@@ -29,7 +29,7 @@ Follow these steps to get your instance of the Paw Network bot running.
 All the necessary files for the bot are hosted on GitHub. You will need to get them onto your computer or server.
 
 - **Clone the Repository:** The best way to get the files is to clone the repository using git. Open your terminal and run:
-- git clone \[<https://your-repository-url-here.git\>](<https://your-repository-url-here.git>)
+- git clone \[<https://github.com/EmersedFox/paw-network.git\>](<https://github.com/EmersedFox/paw-network.git>)
 - **Navigate into the folder:**
 - cd your-repository-folder-name
 
