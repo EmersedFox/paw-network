@@ -22,11 +22,24 @@ Prerequisites
 
     A Discord Account with permissions to create applications.
 
-    A GitHub Account to host the configuration file.
+    A GitHub Account to host the configuration file and bot code.
 
-Step 1: Get the Bot Code
+Step 1: Get the Bot Code from GitHub
 
-You will need to have the bot's files (bot.py, requirements.txt, .env) in a folder on your computer or server.
+All the necessary files for the bot are hosted on GitHub. You will need to get them onto your computer or server.
+
+    Clone the Repository: The best way to get the files is to clone the repository using git. Open your terminal and run:
+
+    git clone [https://your-repository-url-here.git](https://your-repository-url-here.git)
+
+
+    Navigate into the folder:
+
+    cd your-repository-folder-name
+
+
+    This folder will contain bot.py, requirements.txt, and other necessary files.
+
 Step 2: Create the Discord Bot Application
 
     Go to the Developer Portal: Navigate to the Discord Developer Portal.
@@ -45,7 +58,7 @@ Step 2: Create the Discord Bot Application
 
 Step 3: Set Up the Configuration File on GitHub
 
-The bot loads its server list from a server.json file you host on GitHub.
+The bot loads its server list from a server.json file you host on a separate GitHub repository.
 
     Create a Public GitHub Repository: Create a new public repository on GitHub (e.g., Paw-Network-Config).
 
@@ -76,19 +89,26 @@ The bot loads its server list from a server.json file you host on GitHub.
 
         Copy the URL from your browser's address bar. This is your permanent config URL.
 
-Step 4: Set Up Your .env File
+Step 4: Set Up Your Local Environment File
 
-In the same folder as bot.py, create a file named .env and add the following, filling in your own values:
+In the folder where you cloned the bot's code, you will need a .env file to store your secrets.
 
-DISCORD_TOKEN="YOUR_BOT_TOKEN_HERE"
-OWNER_ID="YOUR_DISCORD_USER_ID_HERE"
-CONFIG_URL="YOUR_GITHUB_RAW_JSON_URL_HERE"
+    ⚠️ SECURITY WARNING: The .env file contains your bot's secret token and other private keys. DO NOT EVER commit or upload this file to GitHub or any public place. Use the .gitignore file included in the repository to prevent accidental uploads.
+
+    Create the .env file: In your local project folder, create a new file named .env.
+
+    Add your secrets:
+
+    DISCORD_TOKEN="" <- Your Bot Token
+    OWNER_ID="" <- Your Discord User ID
+    CONFIG_URL="" <- Your GitHub URL to Server.JSON
 
 Step 5: Install Dependencies
 
 Open your terminal or command prompt in the bot's folder and run:
 
 pip install -r requirements.txt
+
 
 Step 6: Invite the Bot and Run It
 
@@ -107,6 +127,7 @@ Step 6: Invite the Bot and Run It
     Run the Bot: Open your terminal in the bot's folder and run the script:
 
     python bot.py
+
 
 Command Usage
 Public Commands
